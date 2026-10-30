@@ -1,4 +1,3 @@
-
 <div class="page-heading">
     <div>
         <h1>
@@ -118,26 +117,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function agregarMensaje(texto, esUsuario = false, esEspera = false) {
-        // Esta función debe usar el contenedor de mensajes
-        // y el formato visual que ya tiene tu vista.
-        const contenedor = document.getElementById('mensajes');
+        // Usa el mismo contenedor y las mismas clases que el mensaje de bienvenida.
+        const contenedor = document.getElementById('chatContainer');
 
         if (!contenedor) {
             console.error('No se encontró el contenedor de mensajes.');
             return { remove() {} };
         }
 
+        // Estructura: <div class="chat-message [user]"> [avatar] <div class="chat-bubble">
         const mensaje = document.createElement('div');
-        mensaje.className = esUsuario
-            ? 'mensaje mensaje-usuario'
-            : 'mensaje mensaje-asistente';
+        mensaje.className = esUsuario ? 'chat-message user' : 'chat-message';
 
-        mensaje.textContent = texto;
-
-        if (esEspera) {
-            mensaje.classList.add('mensaje-espera');
+        if (!esUsuario) {
+            const avatar = document.createElement('div');
+            avatar.className = 'chat-avatar';
+            avatar.innerHTML = '<i class="bi bi-robot"></i>';
+            mensaje.appendChild(avatar);
         }
 
+        const burbuja = document.createElement('div');
+        burbuja.className = 'chat-bubble';
+        // textContent (no innerHTML) para que el texto nunca se interprete como HTML.
+        burbuja.textContent = texto;
+
+        if (esEspera) {
+            burbuja.classList.add('text-muted', 'fst-italic');
+        }
+
+        mensaje.appendChild(burbuja);
         contenedor.appendChild(mensaje);
         contenedor.scrollTop = contenedor.scrollHeight;
 

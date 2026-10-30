@@ -13,6 +13,24 @@ class Producto {
     public function obtenerResumenParaAsistente(): array {
         return $this->db->query('SELECT id, categoria, nombre, stock, stock_minimo, precio, ubicacion FROM productos ORDER BY categoria, nombre')->fetchAll();
     }
+    // --- Consultas usadas por el asistente para enviar solo lo necesario ---
+    public function obtenerEstadisticas(): array {
+        $totales = $this->db->query('SELECT COUNT(*) AS total_productos, COALESCE(SUM(stock),0) AS total_unidades, COALESCE(SUM(stock*precio),0) AS valor_total, COALESCE(SUM(stock <= stock_minimo),0) AS stock_critico, COALESCE(SUM(stock = 0),0) AS sin_stock FROM productos')->fetch();
+        $totales['por_categoria'] = $this->db->query('SELECT categoria, COUNT(*) AS productos, SUM(stock) AS unidades FROM productos GROUP BY categoria ORDER BY categoria')->fetchAll();
+        return $totales;
+    }
+    public function obtenerSinStock(): array {
+        return $this->db->query('SELECT id, categoria, nombre, stock, stock_minimo, precio, ubicacion FROM productos WHERE stock = 0 ORDER BY nombre')->fetchAll();
+    }
+    public function obtenerPorCategoria(string $categoria): array {
+        $stmt=$this->db->prepare('SELECT id, categoria, nombre, stock, stock_minimo, precio, ubicacion FROM productos WHERE categoria = ? ORDER BY nombre');
+        $stmt->execute([$categoria]); return $stmt->fetchAll();
+    }
+    public function obtenerPorPrecio(string $orden, int $limite): array {
+        $orden = $orden === 'ASC' ? 'ASC' : 'DESC'; // solo dos valores posibles: evita inyección SQL
+        $stmt=$this->db->prepare("SELECT id, categoria, nombre, stock, stock_minimo, precio, ubicacion FROM productos ORDER BY precio $orden LIMIT ?");
+        $stmt->bindValue(1, $limite, PDO::PARAM_INT); $stmt->execute(); return $stmt->fetchAll();
+    }
     public function insertar($categoria,$nombre,$stock,$stock_minimo,$precio,$imagen,$ubicacion): bool {
         $sql='INSERT INTO productos (categoria,nombre,stock,stock_minimo,precio,imagen,ubicacion) VALUES (?,?,?,?,?,?,?)';
         return $this->db->prepare($sql)->execute([$categoria,$nombre,$stock,$stock_minimo,$precio,$imagen,$ubicacion]);

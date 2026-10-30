@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../models/Producto.php';
 require_once __DIR__ . '/../services/IAService.php';
 require_once __DIR__ . '/../services/CacheService.php';
+require_once __DIR__ . '/../services/ContextoAsistente.php';
 
 class AsistenteController
 {
@@ -54,36 +55,26 @@ class AsistenteController
             ];
         }
 
-        // Obtener el inventario actual.
-        $productos = (new Producto())->obtenerResumenParaAsistente();
-
-        $inventario = json_encode(
-            $productos,
-            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-        );
-
-        if ($inventario === false) {
-            return [
-                'ok' => false,
-                'respuesta' => 'No se pudo preparar el inventario.'
-            ];
-        }
+        // Seleccionar solo los datos del inventario que necesita esta pregunta.
+        // Antes se enviaba el inventario completo en cada consulta.
+        $contexto = (new ContextoAsistente())->construir($pregunta);
 
         // Preparar las instrucciones para la IA.
         $system = 'Sos el asistente del Vivero Brote Verde.
 Respondé en español rioplatense, de forma clara y breve.
-Contestá exclusivamente con la información del inventario JSON.
+Contestá exclusivamente con los datos que figuran abajo.
+Los datos son un extracto del inventario elegido según la pregunta, no el inventario completo.
 No inventes productos, cantidades, precios ni ubicaciones.
-Si la información no alcanza, decilo.
+Cuando listes productos que cumplen una condición, incluí todos los de los datos: no omitas ninguno.
+Si la información no alcanza, decilo y sugerí cómo reformular la pregunta.
 Para stock crítico, considerá stock menor o igual a stock_minimo.
 Los precios están expresados en pesos argentinos.
 
-Inventario actual (JSON):
-' . $inventario;
+' . $contexto;
 
         // Identificar el modelo utilizado.
         $modelo = getenv('GROQ_MODEL')
-            ?: 'llama-3.3-70b-versatile';
+            ?: 'openai/gpt-oss-20b';
 
         // Crear una clave según el modelo, el inventario y la pregunta.
         $claveCache = hash(

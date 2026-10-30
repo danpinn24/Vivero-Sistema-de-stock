@@ -1,3 +1,4 @@
 .env
 *.log
 vivero_brote_verde.db
+imagenes_carga/

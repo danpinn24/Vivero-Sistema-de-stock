@@ -1,4 +1,3 @@
-
 <?php
 
 class IAService
@@ -6,7 +5,7 @@ class IAService
     public function llamarIA(string $system, string $pregunta): array
     {
         $apiKey = getenv('GROQ_API_KEY') ?: '';
-        $model = getenv('GROQ_MODEL') ?: 'llama-3.3-70b-versatile';
+        $model = getenv('GROQ_MODEL') ?: 'openai/gpt-oss-20b';
 
         // Verificar la configuración de la API.
         if ($apiKey === '') {
@@ -28,7 +27,8 @@ class IAService
         $payload = [
             'model' => $model,
             'temperature' => 0.2,
-            'max_tokens' => 700,
+            // Incluye los tokens de razonamiento en los modelos que razonan.
+            'max_tokens' => 1000,
             'messages' => [
                 [
                     'role' => 'system',
@@ -40,6 +40,13 @@ class IAService
                 ]
             ]
         ];
+
+        // Los modelos gpt-oss "piensan" antes de responder y esos tokens se
+        // cobran. Para consultas simples alcanza con razonamiento bajo.
+        // Solo se envía a esos modelos: otros (como Llama) no lo aceptan.
+        if (str_starts_with($model, 'openai/gpt-oss')) {
+            $payload['reasoning_effort'] = 'low';
+        }
 
         $json = json_encode(
             $payload,
@@ -60,7 +67,23 @@ class IAService
             'https://api.groq.com/openai/v1/chat/completions'
         );
 
+        // Guardar los encabezados de límites que manda Groq en cada respuesta.
+        $limites = [];
+
         curl_setopt_array($ch, [
+            CURLOPT_HEADERFUNCTION => function ($curl, string $linea) use (&$limites): int {
+                $partes = explode(':', $linea, 2);
+
+                if (count($partes) === 2) {
+                    $nombre = strtolower(trim($partes[0]));
+
+                    if (str_starts_with($nombre, 'x-ratelimit-') || $nombre === 'retry-after') {
+                        $limites[$nombre] = trim($partes[1]);
+                    }
+                }
+
+                return strlen($linea);
+            },
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $json,
@@ -103,7 +126,12 @@ class IAService
             'latencia_ms' => $latenciaMs,
             'tokens_entrada' => $tokensEntrada,
             'tokens_salida' => $tokensSalida,
-            'tokens_total' => $tokensTotal
+            'tokens_total' => $tokensTotal,
+            // Consultas que quedan hoy y tokens que quedan en este minuto.
+            'consultas_restantes_dia' => $limites['x-ratelimit-remaining-requests'] ?? null,
+            'tokens_restantes_minuto' => $limites['x-ratelimit-remaining-tokens'] ?? null,
+            'reinicio_tokens' => $limites['x-ratelimit-reset-tokens'] ?? null,
+            'retry_after' => $limites['retry-after'] ?? null
         ];
 
         $linea = json_encode(
@@ -135,6 +163,10 @@ class IAService
                 $mensaje = 'La API rechazó la clave.';
             } elseif ($status === 429) {
                 $mensaje = 'Se alcanzó el límite de uso de la API.';
+
+                if (isset($limites['retry-after']) && is_numeric($limites['retry-after'])) {
+                    $mensaje .= ' Probá de nuevo en ' . (int) ceil((float) $limites['retry-after']) . ' segundos.';
+                }
             } else {
                 $mensaje = 'La API respondió con un error HTTP ' . $status . '.';
             }

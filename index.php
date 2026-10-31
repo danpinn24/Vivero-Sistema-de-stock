@@ -1,4 +1,3 @@
-
 <?php
 
 // En producción, los errores deben registrarse en el log y no mostrarse en pantalla.

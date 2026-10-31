@@ -2,13 +2,7 @@
 
 require_once __DIR__ . '/../models/Producto.php';
 
-/**
- * Arma el contexto que se le envía a la IA.
- *
- * En lugar de mandar el inventario completo en cada consulta, analiza la
- * pregunta en PHP y selecciona solo los datos que hacen falta para
- * responderla. Así se gastan muchos menos tokens.
- */
+
 class ContextoAsistente
 {
     // Máximo de productos que se envían a la IA en una consulta.
